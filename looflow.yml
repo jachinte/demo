@@ -1,0 +1,49 @@
+type: experiment
+name: pod-min-replicas
+description: >
+  An experiment to determine an adequate amount of CPU and RAM for an AWS
+  Fargate task.
+
+host: https://docs.locust.io
+
+tests:
+- ./tests/locustfile.py
+
+knobs:
+- name: CPU
+  description: CPU amount specified for the payments' Fargate task
+  type: choice
+  ordered: true
+  values:
+  # Values taken from https://go.aws/3d4UICQ
+  - 512
+  - 1024
+  renderers:
+  - type: append
+    file: './.env'
+    template: 'FARGATE_TASK_CPU={VALUE}'
+  dependents:
+    512:
+    - name: RAM-512
+      type: choice
+      values:
+      - 512
+      - 1024
+      - 2048
+      renderers:
+      - type: append
+        file: './.env'
+        template: 'FARGATE_TASK_RAM={VALUE}'
+    1024:
+    - name: RAM-1024
+      type: choice
+      values:
+      - 1024
+      - 2048
+      - 3072
+      - 4096
+      renderers:
+      - type: append
+        file: './.env'
+        template: 'FARGATE_TASK_RAM={VALUE}'
+
