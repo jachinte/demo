@@ -1,49 +1,75 @@
+version: 0.1.0
 type: experiment
-name: pod-min-replicas
+name: lambda-RAM
 description: >
-  An experiment to determine an adequate amount of CPU and RAM for an AWS
-  Fargate task.
+  An experiment to determine an adequate amount of RAM, as well as appropriate
+  reserved and provisioned concurrency for an AWS lambda function.
+env:
+  - name: AWS_REGION
+    value: us-east-2
+    sensitive: true
+  - name: MY_VAR
+    value: ${HOME}
 
-host: https://docs.locust.io
-
-tests:
-- ./tests/locustfile.py
-
+setup:
+  max-parallelism: 1
+  seed: 5678
+  experiment:
+    init: |
+      echo "Init step"
+    shutdown: |
+      echo "Shutdown step"
+  trials:
+    deployment: |
+      echo "Deployment step"
+      echo "Region: ${AWS_REGION}"
+    post-deployment: |
+      echo "Post-deployment step"
+    benchmarking:
+      custom: |
+        echo "Evaluation step"
+        echo '{"response_time_p99": 1, "throughput_per_min": 100, "error_rate": 0.5}' > evaluation.json
+        cat evaluation.json
+    cleanup: |
+      echo "Cleanup step"
 knobs:
-- name: CPU
-  description: CPU amount specified for the payments' Fargate task
-  type: choice
-  ordered: true
-  values:
-  # Values taken from https://go.aws/3d4UICQ
-  - 512
-  - 1024
-  renderers:
-  - type: append
-    file: './.env'
-    template: 'FARGATE_TASK_CPU={VALUE}'
-  dependents:
-    512:
-    - name: RAM-512
-      type: choice
-      values:
-      - 512
-      - 1024
-      - 2048
-      renderers:
+  - name: RAM
+    description: >
+      Amount of RAM (in MB) assigned to the lambda function during deployment.
+    type: range
+    bounds:
+      min: 128
+      max: 3008
+    renderers:
       - type: append
-        file: './.env'
-        template: 'FARGATE_TASK_RAM={VALUE}'
-    1024:
-    - name: RAM-1024
-      type: choice
-      values:
-      - 1024
-      - 2048
-      - 3072
-      - 4096
-      renderers:
-      - type: append
-        file: './.env'
-        template: 'FARGATE_TASK_RAM={VALUE}'
+        template: lighthouse_worker_memory_size={VALUE}
+        file: terraform.tfvars
 
+  - name: reserved_concurrency
+    description: >
+      Reserved number of instances for the lambda function. This parameter is
+      useful when the lambda function is being tested as part of an integration
+      scenario.
+    type: range
+    bounds:
+      min: 1
+      max: 100
+    renderers:
+      - type: append
+        template: lighthouse_worker_reserved_concurrency={VALUE}
+        file: terraform.tfvars
+
+  - name: provisioned_concurrency
+    description: >
+      Number of provisioned instances of the lambda function.
+    type: range
+    bounds:
+      min: 1
+      max: 100
+    renderers:
+      - type: append
+        template: lighthouse_worker_provisioned_concurrency={VALUE}
+        file: terraform.tfvars
+
+constraints:
+  - provisioned_concurrency <= reserved_concurrency
